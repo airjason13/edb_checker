@@ -25,7 +25,10 @@ int i_current_version_minor = 0;
 
 char c_current_version[64] = {0};
  
-#define EDB_VERSION_FILE_URI "./CONST.py"
+#define EDB_VERSION_FILE_URI "./CONST.py" //for x86 debug
+
+char edb_version_file_uri[256];
+
 
 int get_current_edb_version(char *edb_ver_file_uri, char *cur_ver){
 	printf("%s\n", edb_ver_file_uri);
@@ -37,15 +40,13 @@ int get_current_edb_version(char *edb_ver_file_uri, char *cur_ver){
 	bool b_got_major = false;
 	bool b_got_minor = false;
 
-	//struct stat sb;
-	//stat(edb_ver_file_uri, &sb);
-	//char *file_contents = malloc(sb.st_size);
-
-	fp = fopen(edb_ver_file_uri, "r");
+	//fp = fopen("/home/eduarts/geany_code/EDB22NTA0/CONST.py", "r");
+	fp = fopen(edb_version_file_uri, "r");
 	if(fp == NULL){
-		printf("update_data.json missing!\n");
+		printf("version file missing!\n");
+		return -1;
 	}else{
-		printf("ready to parse update_data.json!\n");	
+		printf("ready to parse version file!\n");	
 	}
 	while(fscanf(fp, "%[^\n] ", buffer) != EOF){
 		printf("%s\n", buffer);
@@ -124,7 +125,7 @@ int get_eth_mac_addr(char* mac){
 	return 0;
 }
 
-char* get_board_cpu_id(void){
+int get_board_cpu_id(char *id){
 	char *line = NULL;
 	size_t read_len = 0;
 	ssize_t read;
@@ -134,7 +135,8 @@ char* get_board_cpu_id(void){
                 printf("%s\n", line);
                 printf("strlen of line :%ld\n", strlen(line));
 	}
-	return line;
+	memcpy(id, line, strlen(line));
+	return 0;
 }
 
 bool check_need_update(char *least_ver){
@@ -211,11 +213,33 @@ int main(int argc, char* argv[]){
 	const cJSON *old_swu_file_jsons = NULL; //for parse json file
 	const cJSON *swu_fname_json = NULL; // for parse least json file to get swu file name
 
+#ifdef __x86_64__
 	ret = get_current_edb_version(EDB_VERSION_FILE_URI, c_current_version);
 	if(ret < 0){
 		printf("Cannot got current edb version!\n");
 		return -1;
 	}
+
+#elif __aarch64__
+	fp = popen("/usr/bin/find -L /home/eduarts/geany_code -name CONST.py", "r");
+	if(fp == NULL){
+		printf("find version file error!\n");
+		return -1;
+	}
+
+	while (fgets(edb_version_file_uri, sizeof(edb_version_file_uri), fp) != NULL){
+		printf("path :%s", edb_version_file_uri);
+	}
+	pclose(fp);
+	edb_version_file_uri[strlen(edb_version_file_uri) - 1] = 0;
+	printf("edb_version_file_uri :%s", edb_version_file_uri);
+	ret = get_current_edb_version(edb_version_file_uri, c_current_version);
+	if(ret < 0){
+		printf("Cannot got current edb version!\n");
+		return -1;
+	}
+#endif
+
 #ifdef __x86_64__
 	printf("x86\n");
 	sprintf(self_cpu_id, "%s", "1234567890");
@@ -223,7 +247,7 @@ int main(int argc, char* argv[]){
 	printf("self_cpu_id : %s\n", self_cpu_id);
 	printf("self_eth_mac_addr : %s\n", self_eth_mac_addr);
 #elif __aarch64__
-	self_cpu_id = get_board_cpu_id();
+	ret = get_board_cpu_id(self_cpu_id);
 	printf("self cpu id : %s\n", self_cpu_id);
 	ret = get_eth_mac_addr(self_eth_mac_addr);
 	printf("self eth mac addr : %s\n", self_eth_mac_addr);
@@ -346,7 +370,6 @@ int main(int argc, char* argv[]){
 		return -1;
 	}
 	printf("update!\n");
-	exit(0);
 
 	// get the least json to parse
 	sprintf(local_least_json_uri, "/tmp/.%s", least_json_fname);
@@ -380,5 +403,10 @@ int main(int argc, char* argv[]){
 	memcpy(least_swu_fname, swu_fname_json->valuestring, strlen(swu_fname_json->valuestring));
 	printf("swu_fname : %s\n", least_swu_fname);
 	printf("check!\n");
+
+	// download the swu and check md5
+	sprintf(wget_cmd, "wget -qO- http://%s:8080/%s > /tmp/%s", server_ip, least_swu_fname, least_swu_fname);
+	printf("wget_cmd : %s\n", wget_cmd);
+	system(wget_cmd);
 	return 0;
 }
