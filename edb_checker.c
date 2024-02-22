@@ -194,6 +194,7 @@ int main(int argc, char* argv[]){
 	size_t read_len = 0;
 	ssize_t read;
 	char wget_cmd[256];
+	char update_cmd[256];
 	FILE *fp;
 	//bool ip_pass = false;
 	//bool mac_pass = false;
@@ -402,11 +403,26 @@ int main(int argc, char* argv[]){
 	swu_fname_json = cJSON_GetObjectItemCaseSensitive(json, "swu_file_name");
 	memcpy(least_swu_fname, swu_fname_json->valuestring, strlen(swu_fname_json->valuestring));
 	printf("swu_fname : %s\n", least_swu_fname);
-	printf("check!\n");
+	printf("going to download swu file!\n");
 
+	system("export DISPLAY=:0 && ffplay -loop 0 -fs /home/eduarts/Videos/downloading.mp4 &");
 	// download the swu and check md5
 	sprintf(wget_cmd, "wget -qO- http://%s:8080/%s > /tmp/%s", server_ip, least_swu_fname, least_swu_fname);
 	printf("wget_cmd : %s\n", wget_cmd);
 	system(wget_cmd);
+	system("pkill ffplay");
+
+	//check md5, not implement yet
+	
+
+	//update
+	system("export DISPLAY=:0 && ffplay -loop 0 -fs /home/eduarts/Videos/updating.mp4 &");
+	sprintf(update_cmd, "sudo swupdate -i /tmp/%s -k /usr/lib/swupdate/mycert.cert.pem", least_swu_fname);
+	printf("update_cmd : %s\n", update_cmd);
+	system(update_cmd);
+	system("pkill ffplay");
+		
+	
+
 	return 0;
 }
